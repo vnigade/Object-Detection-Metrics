@@ -49,7 +49,8 @@ class Evaluator:
             dict['total TP']: total number of True Positive detections;
             dict['total FP']: total number of False Positive detections;
         """
-        ret = []  # list containing metrics (precision, recall, average precision) of each class
+        ret = [
+        ]  # list containing metrics (precision, recall, average precision) of each class
         # List with all ground truths (Ex: [imageName,class,confidence=1, (bb coordinates XYX2Y2)])
         groundTruths = []
         # List with all detections (Ex: [imageName,class,confidence,(bb coordinates XYX2Y2)])
@@ -127,9 +128,11 @@ class Evaluator:
             prec = np.divide(acc_TP, (acc_FP + acc_TP))
             # Depending on the method, call the right implementation
             if method == MethodAveragePrecision.EveryPointInterpolation:
-                [ap, mpre, mrec, ii] = Evaluator.CalculateAveragePrecision(rec, prec)
+                [ap, mpre, mrec, ii] = Evaluator.CalculateAveragePrecision(
+                    rec, prec)
             else:
-                [ap, mpre, mrec, _] = Evaluator.ElevenPointInterpolatedAP(rec, prec)
+                [ap, mpre, mrec, _] = Evaluator.ElevenPointInterpolatedAP(
+                    rec, prec)
             # add class result in the dictionary to be returned
             r = {
                 'class': c,
@@ -204,7 +207,8 @@ class Evaluator:
             plt.close()
             if showInterpolatedPrecision:
                 if method == MethodAveragePrecision.EveryPointInterpolation:
-                    plt.plot(mrec, mpre, '--r', label='Interpolated precision (every point)')
+                    plt.plot(mrec, mpre, '--r',
+                             label='Interpolated precision (every point)')
                 elif method == MethodAveragePrecision.ElevenPointInterpolation:
                     # Uncomment the line below if you want to plot the area
                     # plt.plot(mrec, mpre, 'or', label='11-point interpolated precision')
@@ -217,16 +221,19 @@ class Evaluator:
                             idxEq = np.argwhere(mrec == r)
                             nrec.append(r)
                             nprec.append(max([mpre[int(id)] for id in idxEq]))
-                    plt.plot(nrec, nprec, 'or', label='11-point interpolated precision')
+                    plt.plot(nrec, nprec, 'or',
+                             label='11-point interpolated precision')
             plt.plot(recall, precision, label='Precision')
             plt.xlabel('recall')
             plt.ylabel('precision')
             if showAP:
                 ap_str = "{0:.2f}%".format(average_precision * 100)
                 # ap_str = "{0:.4f}%".format(average_precision * 100)
-                plt.title('Precision x Recall curve \nClass: %s, AP: %s' % (str(classId), ap_str))
+                plt.title('Precision x Recall curve \nClass: %s, AP: %s' %
+                          (str(classId), ap_str))
             else:
-                plt.title('Precision x Recall curve \nClass: %s' % str(classId))
+                plt.title('Precision x Recall curve \nClass: %s' %
+                          str(classId))
             plt.legend(shadow=True)
             plt.grid()
             ############################################################
@@ -376,7 +383,8 @@ class Evaluator:
         # cv2.imshow("comparing",img)
         # cv2.waitKey(0)
         # cv2.destroyWindow("comparing")
-        return sorted(ret, key=lambda i: i[0], reverse=True)  # sort by iou (from highest to lowest)
+        # sort by iou (from highest to lowest)
+        return sorted(ret, key=lambda i: i[0], reverse=True)
 
     @staticmethod
     def iou(boxA, boxB):
@@ -424,3 +432,69 @@ class Evaluator:
     @staticmethod
     def _getArea(box):
         return (box[2] - box[0] + 1) * (box[3] - box[1] + 1)
+
+    def GetIOU(self, boundingboxes):
+        # Seperate bounding boxes per image
+        bb_image_gt = {}
+        bb_image_det = {}
+        classes = []
+
+        for bb in boundingboxes.getBoundingBoxes():
+            # [imageName, class, confidence, (bb coordinates XYX2Y2)]
+            imageName = bb.getImageName()
+            if bb.getBBType() == BBType.GroundTruth:
+                if imageName not in bb_image_gt:
+                    bb_image_gt[imageName] = []
+
+                bb_image_gt[imageName].append(
+                    [
+                        bb.getClassId(), 1,
+                        # also get confidence values for gt
+                        bb.getAbsoluteBoundingBox(BBFormat.XYX2Y2)
+                    ])
+            else:
+                if imageName not in bb_image_det:
+                    bb_image_det[imageName] = []
+
+                bb_image_det[imageName].append([
+                    bb.getClassId(),
+                    bb.getConfidence(),
+                    bb.getAbsoluteBoundingBox(BBFormat.XYX2Y2)
+                ])
+            # get class
+            if bb.getClassId() not in classes:
+                classes.append(bb.getClassId())
+
+        classes = sorted(classes)
+
+        person_class = '1'
+        all_ious = []
+        for imageName in bb_image_gt:
+            bb_gts = bb_image_gt[imageName]
+            bb_dets = bb_image_det[imageName]
+
+            bb_gt = None
+            bb_gt_confidence = 0.0
+            for bb in bb_gts:
+                if bb[0] == person_class:
+                    if bb[1] > bb_gt_confidence:  # Need to get confidence values for gt
+                        bb_gt = bb[2]
+                        bb_gt_confidence = bb[1]
+
+            bb_det = None
+            bb_det_confidence = 0.0
+            for bb in bb_dets:
+                if bb[0] == person_class:
+                    if bb[1] > bb_det_confidence:
+                        bb_det = bb[2]
+                        bb_det_confidence = bb[1]
+
+            iou = 0
+            if bb_det is not None and bb_gt is not None:
+                iou = Evaluator.iou(bb_gt, bb_det)
+
+            if iou > 0.0:
+                all_ious.append(iou)
+
+        all_ious = np.asarray(all_ious)
+        return all_ious.mean()
