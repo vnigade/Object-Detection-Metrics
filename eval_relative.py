@@ -126,10 +126,11 @@ def getBoundingBoxes(directory,
             if isGT:
                 # idClass = int(splitLine[0]) #class
                 idClass = (splitLine[0])  # class
-                x = float(splitLine[1])
-                y = float(splitLine[2])
-                w = float(splitLine[3])
-                h = float(splitLine[4])
+                confidence = float(splitLine[1])
+                x = float(splitLine[2])
+                y = float(splitLine[3])
+                w = float(splitLine[4])
+                h = float(splitLine[5])
                 bb = BoundingBox(
                     nameOfImage,
                     idClass,
@@ -140,6 +141,7 @@ def getBoundingBoxes(directory,
                     coordType,
                     imgSize,
                     BBType.GroundTruth,
+                    confidence,
                     format=bbFormat)
             else:
                 # idClass = int(splitLine[0]) #class
@@ -353,8 +355,8 @@ validClasses = 0
 #     showGraphic=showPlot)
 
 # Plot only Average IOU for video, i.e., IOU per bounding box, Average IOU per image.
-average_iou = evaluator.GetIOU(allBoundingBoxes)
-
-
-avg_iou_str = "{0:.2f}%".format(average_iou * 100)
-print('Average IOU per video: %s' % avg_iou_str)
+# average_iou = evaluator.GetIOU(allBoundingBoxes)
+# avg_iou_str = "{0:.2f}%".format(average_iou * 100)
+# print('Average IOU per video: %s' % avg_iou_str)
+ret = evaluator.GetRelativeMetrics(allBoundingBoxes)
+print(ret)

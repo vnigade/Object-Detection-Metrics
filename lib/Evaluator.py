@@ -498,3 +498,102 @@ class Evaluator:
 
         all_ious = np.asarray(all_ious)
         return all_ious.mean()
+
+    def GetRelativeMetrics(self, boundingboxes, confidence_gt=0.3, confidence_det=0.5, iou_threshold=0.0):
+        '''
+        Output: The performance metrics relative to the ground truth obtained through a highly accurate model.
+        '''
+        def _evaluate(bb_image_gt, bb_image_det):
+            # Note: The simple logic to compute relative performance
+            # is borrowed from the DDS paper.
+            tp_list = []
+            fp_list = []
+            fn_list = []
+            count_list = []
+            for imageName in bb_image_gt:
+                bb_gts = bb_image_gt[imageName]
+                bb_dets = bb_image_det[imageName]
+
+                tp = 0
+                fp = 0
+                fn = 0
+                count = 0
+                for bb_det in bb_dets:
+                    found = False
+                    for bb_gt in bb_gts:
+                        if Evaluator.iou(bb_gt[2], bb_det[2]) >= iou_threshold:
+                            found = True
+                            break
+                    if found:
+                        tp += 1
+                    else:
+                        fp += 1
+
+                for bb_gt in bb_gts:
+                    found = False
+                    for b_det in bb_dets:
+                        if Evaluator.iou(bb_gt[2], bb_det[2]) >= iou_threshold:
+                            found = True
+                            break
+                    if not found:
+                        fn += 1
+                    else:
+                        count += 1
+                tp_list.append(tp)
+                fp_list.append(fp)
+                fn_list.append(fn)
+                count_list.append(count)
+            tp = sum(tp_list)
+            fp = sum(fp_list)
+            fn = sum(fn_list)
+            count = sum(count_list)
+            precision = round(tp/(tp+fp), 3)
+            recall = round(tp/(tp+fn), 3)
+            f1 = round((2.0*tp/(2.0*tp+fp+fn)), 3)
+
+            return tp, fp, fn, count, precision, recall, f1
+
+        # Seperate bounding boxes per image (frame)
+        bb_image_gt = {}
+        bb_image_det = {}
+        classes = ['1']
+
+        # Get the valid bounding boxes.
+        for bb in boundingboxes.getBoundingBoxes():
+            # [imageName, class, confidence, (bb coordinates XYX2Y2)]
+            imageName = bb.getImageName()
+            if bb.getBBType() == BBType.GroundTruth:
+                if imageName not in bb_image_gt:
+                    bb_image_gt[imageName] = []
+
+                if bb.getClassId() in classes and bb.getConfidence() >= confidence_gt:
+                    bb_image_gt[imageName].append(
+                        [
+                            bb.getClassId(),
+                            bb.getConfidence(),
+                            bb.getAbsoluteBoundingBox(BBFormat.XYX2Y2)
+                        ])
+            else:
+                if imageName not in bb_image_det:
+                    bb_image_det[imageName] = []
+
+                if bb.getClassId() in classes and bb.getConfidence() >= confidence_det:
+                    bb_image_det[imageName].append([
+                        bb.getClassId(),
+                        bb.getConfidence(),
+                        bb.getAbsoluteBoundingBox(BBFormat.XYX2Y2)
+                    ])
+
+        tp, fp, fn, count, precision, recall, f1 = _evaluate(
+            bb_image_gt, bb_image_det)
+        ret = {
+            'total TP': tp,
+            'total FP': fp,
+            'total FN': fn,
+            'total COUNT': count,
+            'precision': precision,
+            'recall': recall,
+            'F1': f1
+        }
+
+        return ret
