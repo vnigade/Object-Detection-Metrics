@@ -499,7 +499,7 @@ class Evaluator:
         all_ious = np.asarray(all_ious)
         return all_ious.mean()
 
-    def GetRelativeMetrics(self, boundingboxes, confidence_gt=0.3, confidence_det=0.5, iou_threshold=0.0):
+    def GetRelativeMetrics(self, boundingboxes, confidence_gt=0.3, confidence_det=0.5, iou_threshold=0.5):
         '''
         Output: The performance metrics relative to the ground truth obtained through a highly accurate model.
         '''
@@ -556,7 +556,12 @@ class Evaluator:
         # Seperate bounding boxes per image (frame)
         bb_image_gt = {}
         bb_image_det = {}
-        classes = ['1']
+        classes = ['3', '6', '7', '8']
+        # classes = {
+        #     "vehicle": [3, 6, 7, 8],
+        #     "persons": [1, 2, 4],
+        #     "roadside-objects": [10, 11, 13, 14]
+        # }
 
         # Get the valid bounding boxes.
         for bb in boundingboxes.getBoundingBoxes():
