@@ -499,7 +499,7 @@ class Evaluator:
         all_ious = np.asarray(all_ious)
         return all_ious.mean()
 
-    def GetRelativeMetrics(self, boundingboxes, confidence_gt=0.3, confidence_det=0.5, iou_threshold=0.5):
+    def GetRelativeMetrics(self, boundingboxes, confidence_gt=0.5, confidence_det=0.5, iou_threshold=0.5):
         '''
         Output: The performance metrics relative to the ground truth obtained through a highly accurate model.
         '''
@@ -513,7 +513,6 @@ class Evaluator:
             for imageName in bb_image_gt:
                 bb_gts = bb_image_gt[imageName]
                 bb_dets = bb_image_det[imageName]
-
                 tp = 0
                 fp = 0
                 fn = 0
@@ -531,7 +530,7 @@ class Evaluator:
 
                 for bb_gt in bb_gts:
                     found = False
-                    for b_det in bb_dets:
+                    for bb_det in bb_dets:
                         if Evaluator.iou(bb_gt[2], bb_det[2]) >= iou_threshold:
                             found = True
                             break
@@ -556,7 +555,7 @@ class Evaluator:
         # Seperate bounding boxes per image (frame)
         bb_image_gt = {}
         bb_image_det = {}
-        # Check the class categories and labels here. 
+        # Check the class categories and labels here.
         # https://tech.amikelive.com/node-718/what-object-categories-labels-are-in-coco-dataset/
         # [car, bus, train, truck]. This is for DDS trafic videos
         # classes = ['3', '6', '7', '8']
