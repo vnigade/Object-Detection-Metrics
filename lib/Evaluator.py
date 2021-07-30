@@ -556,11 +556,12 @@ class Evaluator:
         # Seperate bounding boxes per image (frame)
         bb_image_gt = {}
         bb_image_det = {}
+        # [car, bus, train, truck]. This is for DDS trafic videos
         classes = ['3', '6', '7', '8']
         # classes = {
-        #     "vehicle": [3, 6, 7, 8],
-        #     "persons": [1, 2, 4],
-        #     "roadside-objects": [10, 11, 13, 14]
+        #     "vehicle": [3, 6, 7, 8], # [car, bus, train, truck]
+        #     "persons": [1, 2, 4], # [person, bicycle, motorbike]
+        #     "roadside-objects": [10, 11, 13, 14] # [traffic light, fire hydrant, parking meter, bench]
         # }
 
         # Get the valid bounding boxes.
