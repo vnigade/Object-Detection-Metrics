@@ -556,8 +556,13 @@ class Evaluator:
         # Seperate bounding boxes per image (frame)
         bb_image_gt = {}
         bb_image_det = {}
+        # Check the class categories and labels here. 
+        # https://tech.amikelive.com/node-718/what-object-categories-labels-are-in-coco-dataset/
         # [car, bus, train, truck]. This is for DDS trafic videos
-        classes = ['3', '6', '7', '8']
+        # classes = ['3', '6', '7', '8']
+
+        # [person, chair, dining table]. This is for PKUMMD dataset videos
+        classes = ['1', '62', '67']
         # classes = {
         #     "vehicle": [3, 6, 7, 8], # [car, bus, train, truck]
         #     "persons": [1, 2, 4], # [person, bicycle, motorbike]
