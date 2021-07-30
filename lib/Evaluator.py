@@ -572,10 +572,11 @@ class Evaluator:
         for bb in boundingboxes.getBoundingBoxes():
             # [imageName, class, confidence, (bb coordinates XYX2Y2)]
             imageName = bb.getImageName()
+            if imageName not in bb_image_gt:
+                bb_image_gt[imageName] = []
+            if imageName not in bb_image_det:
+                bb_image_det[imageName] = []
             if bb.getBBType() == BBType.GroundTruth:
-                if imageName not in bb_image_gt:
-                    bb_image_gt[imageName] = []
-
                 if bb.getClassId() in classes and bb.getConfidence() >= confidence_gt:
                     bb_image_gt[imageName].append(
                         [
@@ -584,9 +585,6 @@ class Evaluator:
                             bb.getAbsoluteBoundingBox(BBFormat.XYX2Y2)
                         ])
             else:
-                if imageName not in bb_image_det:
-                    bb_image_det[imageName] = []
-
                 if bb.getClassId() in classes and bb.getConfidence() >= confidence_det:
                     bb_image_det[imageName].append([
                         bb.getClassId(),

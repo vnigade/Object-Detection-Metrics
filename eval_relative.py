@@ -303,6 +303,7 @@ if len(errors) != 0:
     sys.exit()
 
 # Check if path to save results already exists and is not empty
+'''
 if os.path.isdir(savePath) and os.listdir(savePath):
     key_pressed = ''
     while key_pressed.upper() not in ['Y', 'N']:
@@ -315,7 +316,7 @@ if os.path.isdir(savePath) and os.listdir(savePath):
     if key_pressed.upper() == 'N':
         print('Process canceled')
         sys.exit()
-
+'''
 # Clear folder and save results
 shutil.rmtree(savePath, ignore_errors=True)
 os.makedirs(savePath)
