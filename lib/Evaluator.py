@@ -83,24 +83,27 @@ class Evaluator:
             # Get only detection of class c
             dects = []
             [dects.append(d) for d in detections if d[1] == c]
-            # Get only ground truths of class c
-            gts = []
-            [gts.append(g) for g in groundTruths if g[1] == c]
-            npos = len(gts)
+            # Get only ground truths of class c, use filename as key
+            gts = {}
+            npos = 0
+            for g in groundTruths:
+                if g[1] == c:
+                    npos += 1
+                    gts[g[0]] = gts.get(g[0], []) + [g]
+
             # sort detections by decreasing confidence
             dects = sorted(dects, key=lambda conf: conf[2], reverse=True)
             TP = np.zeros(len(dects))
             FP = np.zeros(len(dects))
             # create dictionary with amount of gts for each image
-            det = Counter([cc[0] for cc in gts])
-            for key, val in det.items():
-                det[key] = np.zeros(val)
+            det = {key: np.zeros(len(gts[key])) for key in gts}
+
             # print("Evaluating class: %s (%d detections)" % (str(c), len(dects)))
             # Loop through detections
             for d in range(len(dects)):
                 # print('dect %s => %s' % (dects[d][0], dects[d][3],))
                 # Find ground truth image
-                gt = [gt for gt in gts if gt[0] == dects[d][0]]
+                gt = gts[dects[d][0]] if dects[d][0] in gts else []
                 iouMax = sys.float_info.min
                 for j in range(len(gt)):
                     # print('Ground truth gt => %s' % (gt[j][3],))
@@ -309,7 +312,7 @@ class Evaluator:
             mpre[i - 1] = max(mpre[i - 1], mpre[i])
         ii = []
         for i in range(len(mrec) - 1):
-            if mrec[1:][i] != mrec[0:-1][i]:
+            if mrec[1+i] != mrec[i]:
                 ii.append(i + 1)
         ap = 0
         for i in ii:
@@ -433,75 +436,9 @@ class Evaluator:
     def _getArea(box):
         return (box[2] - box[0] + 1) * (box[3] - box[1] + 1)
 
-    def GetIOU(self, boundingboxes):
-        # Seperate bounding boxes per image
-        bb_image_gt = {}
-        bb_image_det = {}
-        classes = []
-
-        for bb in boundingboxes.getBoundingBoxes():
-            # [imageName, class, confidence, (bb coordinates XYX2Y2)]
-            imageName = bb.getImageName()
-            if bb.getBBType() == BBType.GroundTruth:
-                if imageName not in bb_image_gt:
-                    bb_image_gt[imageName] = []
-
-                bb_image_gt[imageName].append(
-                    [
-                        bb.getClassId(), 1,
-                        # also get confidence values for gt
-                        bb.getAbsoluteBoundingBox(BBFormat.XYX2Y2)
-                    ])
-            else:
-                if imageName not in bb_image_det:
-                    bb_image_det[imageName] = []
-
-                bb_image_det[imageName].append([
-                    bb.getClassId(),
-                    bb.getConfidence(),
-                    bb.getAbsoluteBoundingBox(BBFormat.XYX2Y2)
-                ])
-            # get class
-            if bb.getClassId() not in classes:
-                classes.append(bb.getClassId())
-
-        classes = sorted(classes)
-
-        person_class = '1'
-        all_ious = []
-        for imageName in bb_image_gt:
-            bb_gts = bb_image_gt[imageName]
-            bb_dets = bb_image_det[imageName]
-
-            bb_gt = None
-            bb_gt_confidence = 0.0
-            for bb in bb_gts:
-                if bb[0] == person_class:
-                    if bb[1] > bb_gt_confidence:  # Need to get confidence values for gt
-                        bb_gt = bb[2]
-                        bb_gt_confidence = bb[1]
-
-            bb_det = None
-            bb_det_confidence = 0.0
-            for bb in bb_dets:
-                if bb[0] == person_class:
-                    if bb[1] > bb_det_confidence:
-                        bb_det = bb[2]
-                        bb_det_confidence = bb[1]
-
-            iou = 0
-            if bb_det is not None and bb_gt is not None:
-                iou = Evaluator.iou(bb_gt, bb_det)
-
-            if iou > 0.0:
-                all_ious.append(iou)
-
-        all_ious = np.asarray(all_ious)
-        return all_ious.mean()
-
-    def GetRelativeMetrics(self, boundingboxes, confidence_gt=0.5, confidence_det=0.5, iou_threshold=0.5):
+    def GetRelativeMetrics_F1(self, boundingboxes, confidence_gt=0.20, confidence_det=0.20, iou_threshold=0.5):
         '''
-        Output: The performance metrics relative to the ground truth obtained through a highly accurate model.
+        Output: The performance F1 metrics relative to the ground truth obtained through a highly accurate model.
         '''
         def _evaluate(bb_image_gt, bb_image_det):
             # Note: The simple logic to compute relative performance
@@ -510,6 +447,7 @@ class Evaluator:
             fp_list = []
             fn_list = []
             count_list = []
+            stats_per_image = {}
             for imageName in bb_image_gt:
                 bb_gts = bb_image_gt[imageName]
                 bb_dets = bb_image_det[imageName]
@@ -542,6 +480,11 @@ class Evaluator:
                 fp_list.append(fp)
                 fn_list.append(fn)
                 count_list.append(count)
+                stats_per_image[imageName] = [tp, fp, fn]
+
+            # for imageName, stats in stats_per_image.items():
+            #    print("Stats: ", imageName, stats)
+
             tp = sum(tp_list)
             fp = sum(fp_list)
             fn = sum(fn_list)
@@ -558,10 +501,10 @@ class Evaluator:
         # Check the class categories and labels here.
         # https://tech.amikelive.com/node-718/what-object-categories-labels-are-in-coco-dataset/
         # [car, bus, train, truck]. This is for DDS trafic videos
-        # classes = ['3', '6', '7', '8']
+        classes = ['3', '6', '4', '8']
 
         # [person, chair, dining table]. This is for PKUMMD dataset videos
-        classes = ['1', '62', '67']
+        # classes = ['1', '62', '67']
         # classes = {
         #     "vehicle": [3, 6, 7, 8], # [car, bus, train, truck]
         #     "persons": [1, 2, 4], # [person, bicycle, motorbike]
@@ -576,6 +519,7 @@ class Evaluator:
                 bb_image_gt[imageName] = []
             if imageName not in bb_image_det:
                 bb_image_det[imageName] = []
+            # print(f"Imagename: {imageName}")
             if bb.getBBType() == BBType.GroundTruth:
                 if bb.getClassId() in classes and bb.getConfidence() >= confidence_gt:
                     bb_image_gt[imageName].append(
@@ -592,6 +536,19 @@ class Evaluator:
                         bb.getAbsoluteBoundingBox(BBFormat.XYX2Y2)
                     ])
 
+        missed_frames_gt = 0
+        for key, value in bb_image_gt.items():
+            if len(value) == 0:
+                missed_frames_gt += 1
+        missed_frames_det = 0
+        for key, value in bb_image_det.items():
+            if len(value) == 0:
+                missed_frames_det += 1
+        # print(
+        #    f"Some stats: total gt {len(bb_image_gt)}, total det {len(bb_image_det)}")
+        # print(
+        #    f"Some stats: missed gt {missed_frames_gt}, missed det {missed_frames_det}")
+
         tp, fp, fn, count, precision, recall, f1 = _evaluate(
             bb_image_gt, bb_image_det)
         ret = {
@@ -603,5 +560,167 @@ class Evaluator:
             'recall': recall,
             'F1': f1
         }
+
+        return ret
+
+    def GetRelativeMetrics_mAP(self, boundingboxes, confidence_gt=0.20, confidence_det=0.20, iou_threshold=0.5):
+        '''
+        Output: The performance mAP metrics relative to the ground truth obtained through a highly accurate model.
+        '''
+        def _evaluate(groundTruths, detections, classes):
+            ret = []
+            classes = sorted(classes)
+            # Precision x Recall is obtained individually by each class
+            # Loop through by classes
+            for c in classes:
+                # Get only detection of class c
+                dects = []
+                [dects.append(d) for d in detections if d[1] == c]
+                # Get only ground truths of class c, use filename as key
+                gts = {}
+                npos = 0
+                for g in groundTruths:
+                    if g[1] == c:
+                        npos += 1
+                        gts[g[0]] = gts.get(g[0], []) + [g]
+
+                # sort detections by decreasing confidence
+                dects = sorted(dects, key=lambda conf: conf[2], reverse=True)
+                TP = np.zeros(len(dects))
+                FP = np.zeros(len(dects))
+                # create dictionary with amount of gts for each image
+                det = {key: np.zeros(len(gts[key])) for key in gts}
+
+                # print("Evaluating class: %s (%d detections)" % (str(c), len(dects)))
+                # Loop through detections
+                for d in range(len(dects)):
+                    # print('dect %s => %s' % (dects[d][0], dects[d][3],))
+                    # Find ground truth image
+                    gt = gts[dects[d][0]] if dects[d][0] in gts else []
+                    iouMax = sys.float_info.min
+                    for j in range(len(gt)):
+                        # print('Ground truth gt => %s' % (gt[j][3],))
+                        iou = Evaluator.iou(dects[d][3], gt[j][3])
+                        if iou > iouMax:
+                            iouMax = iou
+                            jmax = j
+                    # Assign detection as true positive/don't care/false positive
+                    if iouMax >= iou_threshold:
+                        if det[dects[d][0]][jmax] == 0:
+                            TP[d] = 1  # count as true positive
+                            # flag as already 'seen'
+                            det[dects[d][0]][jmax] = 1
+                            # print("TP")
+                        else:
+                            FP[d] = 1  # count as false positive
+                            # print("FP")
+                    # - A detected "cat" is overlaped with a GT "cat" with IOU >= IOUThreshold.
+                    else:
+                        FP[d] = 1  # count as false positive
+                        # print("FP")
+                # compute precision, recall and average precision
+                acc_FP = np.cumsum(FP)
+                acc_TP = np.cumsum(TP)
+                rec = acc_TP / npos
+                prec = np.divide(acc_TP, (acc_FP + acc_TP))
+                # Depending on the method, call the right implementation
+                # if method == MethodAveragePrecision.EveryPointInterpolation:
+                [ap, mpre, mrec, ii] = Evaluator.CalculateAveragePrecision(
+                    rec, prec)
+                # else:
+                #     [ap, mpre, mrec, _] = Evaluator.ElevenPointInterpolatedAP(
+                #         rec, prec)
+                # add class result in the dictionary to be returned
+                r = {
+                    'class': c,
+                    # 'precision': prec,
+                    # 'recall': rec,
+                    'AP': ap,
+                    # 'interpolated precision': mpre,
+                    # 'interpolated recall': mrec,
+                    'total positives': npos,
+                    'total TP': np.sum(TP),
+                    'total FP': np.sum(FP)
+                }
+                ret.append(r)
+                # print(r)
+            return ret
+
+        # Seperate bounding boxes per image (frame)
+        bb_image_gt = {}
+        bb_image_det = {}
+        # Check the class categories and labels here.
+        # https://tech.amikelive.com/node-718/what-object-categories-labels-are-in-coco-dataset/
+        # [car, bus, motorcycle, truck]. This is for DDS trafic videos
+        classes = ['3', '6', '4', '8']
+
+        # [person, chair, dining table]. This is for PKUMMD dataset videos
+        # classes = ['1', '62', '67']
+        # classes = {
+        #     "vehicle": [3, 6, 7, 8], # [car, bus, train, truck]
+        #     "persons": [1, 2, 4], # [person, bicycle, motorbike]
+        #     "roadside-objects": [10, 11, 13, 14] # [traffic light, fire hydrant, parking meter, bench]
+        # }
+
+        # Get the valid bounding boxes.
+        for bb in boundingboxes.getBoundingBoxes():
+            # [imageName, class, confidence, (bb coordinates XYX2Y2)]
+            imageName = bb.getImageName()
+
+            if bb.getBBType() == BBType.GroundTruth:
+                if imageName not in bb_image_gt:
+                    bb_image_gt[imageName] = []
+                if bb.getClassId() in classes and bb.getConfidence() >= confidence_gt:
+                    bb_image_gt[imageName].append(
+                        [
+                            bb.getImageName(),
+                            bb.getClassId(),
+                            # bb.getConfidence(),
+                            1,
+                            bb.getAbsoluteBoundingBox(BBFormat.XYX2Y2)
+                        ])
+            else:
+                if imageName not in bb_image_det:
+                    bb_image_det[imageName] = []
+                if bb.getClassId() in classes and bb.getConfidence() >= confidence_det:
+                    bb_image_det[imageName].append([
+                        bb.getImageName(),
+                        bb.getClassId(),
+                        bb.getConfidence(),
+                        bb.getAbsoluteBoundingBox(BBFormat.XYX2Y2)
+                    ])
+
+        detections = []
+        groundTruths = []
+        ''' We use absence of bbox as a proxy to identify the missed frames.
+            This is good for datasets for which there will be atleast one bbox
+            in the non-missed frames. True for vehicle detection.
+        '''
+        for imageName in bb_image_det:
+            groundTruths.extend(bb_image_gt[imageName])
+            detections.extend(bb_image_det[imageName])
+        # for imageName in bb_image_gt:
+        #    groundTruths.extend(bb_image_gt[imageName])
+
+        # print(f"Total images detected {len(bb_image_det)}")
+
+        ret = _evaluate(
+            groundTruths, detections, classes)
+
+        mAP = 0
+        for class_ap in ret:
+            mAP += class_ap["AP"]
+        assert len(ret) == len(classes)
+        mAP = mAP / len(ret)  
+        ret.append({"mAP": mAP, "classes": len(ret)})
+        # ret = {
+        #     'total TP': tp,
+        #     'total FP': fp,
+        #     'total FN': fn,
+        #     'total COUNT': count,
+        #     'precision': precision,
+        #     'recall': recall,
+        #     'F1': f1
+        # }
 
         return ret

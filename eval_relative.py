@@ -252,6 +252,10 @@ parser.add_argument(
     dest='showPlot',
     action='store_false',
     help='no plot is shown during execution')
+parser.add_argument(
+    '--metric_type',
+    default="F1",
+    help='metric to use')
 args = parser.parse_args()
 
 iouThreshold = args.iouThreshold
@@ -359,5 +363,9 @@ validClasses = 0
 # average_iou = evaluator.GetIOU(allBoundingBoxes)
 # avg_iou_str = "{0:.2f}%".format(average_iou * 100)
 # print('Average IOU per video: %s' % avg_iou_str)
-ret = evaluator.GetRelativeMetrics(allBoundingBoxes)
+if args.metric_type == "F1":
+  ret = evaluator.GetRelativeMetrics_F1(allBoundingBoxes)
+elif args.metric_type == "mAP":
+  ret = evaluator.GetRelativeMetrics_mAP(allBoundingBoxes)
+
 print(ret)
