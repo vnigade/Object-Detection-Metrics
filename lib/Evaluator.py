@@ -474,8 +474,8 @@ class Evaluator:
                             break
                     if not found:
                         fn += 1
-                    else:
-                        count += 1
+                    # else:
+                    count += 1
                 tp_list.append(tp)
                 fp_list.append(fp)
                 fn_list.append(fn)
@@ -511,6 +511,7 @@ class Evaluator:
         #     "roadside-objects": [10, 11, 13, 14] # [traffic light, fire hydrant, parking meter, bench]
         # }
 
+        detected_frames_lst = []
         # Get the valid bounding boxes.
         for bb in boundingboxes.getBoundingBoxes():
             # [imageName, class, confidence, (bb coordinates XYX2Y2)]
@@ -529,6 +530,8 @@ class Evaluator:
                             bb.getAbsoluteBoundingBox(BBFormat.XYX2Y2)
                         ])
             else:
+                if imageName not in detected_frames_lst:
+                    detected_frames_lst.append(imageName)
                 if bb.getClassId() in classes and bb.getConfidence() >= confidence_det:
                     bb_image_det[imageName].append([
                         bb.getClassId(),
@@ -549,9 +552,10 @@ class Evaluator:
         # print(
         #    f"Some stats: missed gt {missed_frames_gt}, missed det {missed_frames_det}")
 
+        # Total F1 score
         tp, fp, fn, count, precision, recall, f1 = _evaluate(
             bb_image_gt, bb_image_det)
-        ret = {
+        total_ret = {
             'total TP': tp,
             'total FP': fp,
             'total FN': fn,
@@ -561,6 +565,28 @@ class Evaluator:
             'F1': f1
         }
 
+        # Only F1 score of detected frames
+        detected_bb_image_gt = {}
+        detected_bb_image_det = {}
+        for imageName in bb_image_gt.keys():
+            if imageName in detected_frames_lst:
+                detected_bb_image_gt[imageName] = bb_image_gt[imageName]
+                detected_bb_image_det[imageName] = bb_image_det[imageName]
+
+        tp, fp, fn, count, precision, recall, f1 = _evaluate(
+            detected_bb_image_gt, detected_bb_image_det)
+        detected_ret = {
+            'total TP': tp,
+            'total FP': fp,
+            'total FN': fn,
+            'total COUNT': count,
+            'precision': precision,
+            'recall': recall,
+            'F1': f1
+        }
+
+        ret = {"All Frames F1": total_ret, "Detected Frames F1": detected_ret,
+               "Stats": {"Total Frames": len(bb_image_gt), "Detected Frames": len(detected_frames_lst)}}
         return ret
 
     def GetRelativeMetrics_mAP(self, boundingboxes, confidence_gt=0.20, confidence_det=0.20, iou_threshold=0.5):
@@ -711,7 +737,7 @@ class Evaluator:
         for class_ap in ret:
             mAP += class_ap["AP"]
         assert len(ret) == len(classes)
-        mAP = mAP / len(ret)  
+        mAP = mAP / len(ret)
         ret.append({"mAP": mAP, "classes": len(ret)})
         # ret = {
         #     'total TP': tp,
